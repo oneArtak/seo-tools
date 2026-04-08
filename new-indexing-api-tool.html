@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Google Indexing API — Bulk Submit</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.9.0/jsrsasign-all-min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #e0e0e0; min-height: 100vh; padding: 24px; }
+  h1 { font-size: 18px; color: #fff; margin-bottom: 4px; letter-spacing: 1px; }
+  .subtitle { color: #555; font-size: 12px; margin-bottom: 24px; }
+  .setup { background: #111; border: 1px solid #222; padding: 20px; margin-bottom: 24px; }
+  .setup h2 { font-size: 11px; color: #555; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 16px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 11px; color: #555; margin-bottom: 6px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .field textarea { width: 100%; background: #0a0a0a; border: 1px solid #333; color: #e0e0e0; padding: 8px 12px; font-family: inherit; font-size: 12px; height: 140px; resize: vertical; }
+  .field textarea:focus { outline: none; border-color: #4ade80; }
+  .file-btn { background: #1a1a1a; border: 1px solid #333; color: #e0e0e0; padding: 8px 16px; font-family: inherit; font-size: 12px; cursor: pointer; }
+  .file-btn:hover { border-color: #555; }
+  .file-status { font-size: 11px; color: #555; margin-top: 6px; }
+  .file-status.ok { color: #4ade80; }
+  button.primary { background: #0d2b1a; border: 1px solid #4ade80; color: #4ade80; padding: 9px 24px; font-family: inherit; font-size: 13px; cursor: pointer; letter-spacing: 0.5px; }
+  button.primary:hover { background: #133d26; }
+  button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.danger { background: #2b0d0d; border: 1px solid #f87171; color: #f87171; padding: 9px 24px; font-family: inherit; font-size: 13px; cursor: pointer; }
+  button.danger:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.secondary { background: #1a1a1a; border: 1px solid #333; color: #e0e0e0; padding: 9px 24px; font-family: inherit; font-size: 13px; cursor: pointer; }
+  button.secondary:hover { border-color: #555; }
+  .controls { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stats { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stat { background: #111; border: 1px solid #222; padding: 10px 16px; min-width: 90px; }
+  .stat-label { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 1px; }
+  .stat-value { font-size: 22px; font-weight: bold; margin-top: 2px; }
+  .green { color: #4ade80; } .red { color: #f87171; } .yellow { color: #facc15; } .blue { color: #60a5fa; }
+  .progress-bar { width: 100%; height: 3px; background: #1a1a1a; margin-bottom: 20px; overflow: hidden; }
+  .progress-fill { height: 100%; background: #4ade80; transition: width 0.3s; }
+  .log { background: #080808; border: 1px solid #1a1a1a; height: 280px; overflow-y: auto; padding: 12px; font-size: 11px; margin-bottom: 20px; }
+  .log-line { padding: 2px 0; border-bottom: 1px solid #0f0f0f; }
+  .log-line.success { color: #4ade80; }
+  .log-line.error { color: #f87171; }
+  .log-line.warn { color: #facc15; }
+  .log-line.info { color: #60a5fa; }
+  .limit-note { background: #1a1500; border: 1px solid #854d0e; padding: 12px 16px; font-size: 11px; color: #facc15; margin-bottom: 20px; line-height: 1.6; }
+  .hidden { display: none; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  th { background: #111; padding: 8px 12px; text-align: left; color: #555; font-weight: normal; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #222; position: sticky; top: 0; }
+  td { padding: 6px 12px; border-bottom: 1px solid #111; word-break: break-all; }
+  tr:hover td { background: #111; }
+  .badge { display: inline-block; padding: 2px 8px; font-size: 10px; }
+  .badge.queued { background: #1a1a1a; color: #555; border: 1px solid #333; }
+  .badge.sent { background: #0d2b1a; color: #4ade80; border: 1px solid #166534; }
+  .badge.error { background: #2b0d0d; color: #f87171; border: 1px solid #991b1b; }
+  .badge.skipped { background: #1a1500; color: #facc15; border: 1px solid #854d0e; }
+  .table-wrap { max-height: 380px; overflow-y: auto; border: 1px solid #1a1a1a; }
+  .delay-control { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #555; }
+  input[type=range] { width: 80px; accent-color: #4ade80; }
+</style>
+</head>
+<body>
+
+<h1>GOOGLE INDEXING API</h1>
+<div class="subtitle">Bulk URL submission — 200 URLs/day limit</div>
+
+<div class="limit-note">
+  ⚠ Google Indexing API daily limit: <strong>200 URLs per day</strong>. Tool will automatically stop at 200 and show remaining URLs for next day.
+</div>
+
+<div class="setup" id="setupPanel">
+  <h2>⚙ Setup</h2>
+  <div class="field">
+    <label>Service Account JSON file</label>
+    <input type="file" id="jsonFile" accept=".json" style="display:none" onchange="loadJSON(this)">
+    <button class="file-btn" onclick="document.getElementById('jsonFile').click()">📁 Select JSON file</button>
+    <div class="file-status" id="fileStatus">No file selected</div>
+  </div>
+  <div class="field">
+    <label>URLs to submit — one per line</label>
+    <textarea id="urlInput" placeholder="https://example.com/page-1&#10;https://example.com/page-2"></textarea>
+  </div>
+  <button class="primary" onclick="initTool()">▶ LOAD & PREPARE</button>
+</div>
+
+<div id="mainPanel" class="hidden">
+  <div class="controls">
+    <button class="primary" id="btnStart" onclick="startSubmit()">▶ START (200 max today)</button>
+    <button class="danger" id="btnStop" onclick="stopSubmit()" disabled>■ STOP</button>
+    <button class="secondary" onclick="exportCSV()">↓ EXPORT CSV</button>
+    <div class="delay-control">
+      <span>DELAY:</span>
+      <input type="range" id="delay" min="300" max="2000" value="600" step="100">
+      <span id="delayVal">0.6s</span>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-label">Total</div><div class="stat-value blue" id="sTotal">0</div></div>
+    <div class="stat"><div class="stat-label">Sent today</div><div class="stat-value green" id="sSent">0</div></div>
+    <div class="stat"><div class="stat-label">Remaining</div><div class="stat-value yellow" id="sRemaining">0</div></div>
+    <div class="stat"><div class="stat-label">Errors</div><div class="stat-value red" id="sErrors">0</div></div>
+    <div class="stat"><div class="stat-label">Daily limit</div><div class="stat-value" id="sLimit">200</div></div>
+  </div>
+
+  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  <div class="log" id="log"></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>URL</th><th>STATUS</th><th>RESPONSE</th></tr></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const DAILY_LIMIT = 200;
+let URLS = [];
+let serviceAccount = null;
+let results = [];
+let running = false;
+let currentIndex = 0;
+let sentToday = 0;
+let errorCount = 0;
+let accessToken = null;
+let tokenExpiry = 0;
+
+document.getElementById('delay').addEventListener('input', function() {
+  document.getElementById('delayVal').textContent = (this.value / 1000).toFixed(1) + 's';
+});
+
+function loadJSON(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      serviceAccount = JSON.parse(e.target.result);
+      if (!serviceAccount.private_key || !serviceAccount.client_email) {
+        document.getElementById('fileStatus').textContent = '✗ Invalid JSON — missing private_key or client_email';
+        document.getElementById('fileStatus').className = 'file-status';
+        serviceAccount = null;
+      } else {
+        document.getElementById('fileStatus').textContent = '✓ Loaded: ' + serviceAccount.client_email;
+        document.getElementById('fileStatus').className = 'file-status ok';
+      }
+    } catch(e) {
+      document.getElementById('fileStatus').textContent = '✗ Invalid JSON file';
+      document.getElementById('fileStatus').className = 'file-status';
+    }
+  };
+  reader.readAsText(file);
+}
+
+function initTool() {
+  if (!serviceAccount) { alert('Please select your JSON file first.'); return; }
+  const raw = document.getElementById('urlInput').value.trim();
+  if (!raw) { alert('Please paste your URLs.'); return; }
+  URLS = raw.split('\n').map(u => u.trim()).filter(u => u.startsWith('http'));
+  if (!URLS.length) { alert('No valid URLs found.'); return; }
+
+  results = URLS.map(url => ({ url, status: 'queued', response: '' }));
+  currentIndex = 0; sentToday = 0; errorCount = 0;
+
+  document.getElementById('sTotal').textContent = URLS.length;
+  document.getElementById('sRemaining').textContent = URLS.length;
+  document.getElementById('setupPanel').classList.add('hidden');
+  document.getElementById('mainPanel').classList.remove('hidden');
+
+  URLS.forEach((url, i) => renderRow(i));
+  log('Loaded ' + URLS.length + ' URLs. Daily limit: 200. Press START.', 'info');
+}
+
+// JWT generation for Google OAuth2
+async function getAccessToken() {
+  if (accessToken && Date.now() < tokenExpiry) return accessToken;
+
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const claim = {
+    iss: serviceAccount.client_email,
+    scope: 'https://www.googleapis.com/auth/indexing',
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: now + 3600,
+    iat: now
+  };
+
+  const sHeader = JSON.stringify(header);
+  const sClaim = JSON.stringify(claim);
+  const privateKey = serviceAccount.private_key;
+
+  const sig = new KJUR.crypto.Signature({ alg: 'SHA256withRSA' });
+  sig.init(privateKey);
+  const jwt = KJUR.jws.JWS.sign('RS256', sHeader, sClaim, privateKey);
+
+  const resp = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + jwt
+  });
+
+  const data = await resp.json();
+  if (!data.access_token) throw new Error('Token error: ' + JSON.stringify(data));
+
+  accessToken = data.access_token;
+  tokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
+  return accessToken;
+}
+
+async function submitURL(url, index) {
+  try {
+    const token = await getAccessToken();
+    const resp = await fetch('https://indexing.googleapis.com/v3/urlNotifications:publish', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ url: url, type: 'URL_UPDATED' })
+    });
+
+    const data = await resp.json();
+
+    if (resp.ok) {
+      results[index].status = 'sent';
+      results[index].response = '200 OK';
+      sentToday++;
+      log('✓ SENT: ' + url, 'success');
+    } else {
+      results[index].status = 'error';
+      results[index].response = data.error?.message || resp.status;
+      errorCount++;
+      log('✗ ERROR: ' + url + ' → ' + (data.error?.message || resp.status), 'error');
+    }
+  } catch(e) {
+    results[index].status = 'error';
+    results[index].response = e.message;
+    errorCount++;
+    log('✗ FETCH ERROR: ' + url + ' → ' + e.message, 'error');
+  }
+  renderRow(index);
+  updateStats();
+}
+
+async function startSubmit() {
+  if (running) return;
+  running = true;
+  document.getElementById('btnStart').disabled = true;
+  document.getElementById('btnStop').disabled = false;
+
+  log('Getting access token...', 'info');
+  try { await getAccessToken(); log('✓ Token OK', 'success'); }
+  catch(e) { log('✗ Token failed: ' + e.message, 'error'); running = false; document.getElementById('btnStart').disabled = false; document.getElementById('btnStop').disabled = true; return; }
+
+  log('Starting submission from URL #' + (currentIndex + 1) + '...', 'info');
+
+  while (currentIndex < URLS.length && running) {
+    if (sentToday >= DAILY_LIMIT) {
+      log('⚠ Daily limit reached (200). Come back tomorrow for remaining ' + (URLS.length - currentIndex) + ' URLs.', 'warn');
+      break;
+    }
+    await submitURL(URLS[currentIndex], currentIndex);
+    currentIndex++;
+    if (currentIndex < URLS.length && running && sentToday < DAILY_LIMIT) {
+      await new Promise(r => setTimeout(r, parseInt(document.getElementById('delay').value)));
+    }
+  }
+
+  if (currentIndex >= URLS.length) {
+    log('✓ ALL DONE — Sent: ' + sentToday + ' | Errors: ' + errorCount, 'success');
+  }
+
+  running = false;
+  document.getElementById('btnStart').disabled = false;
+  document.getElementById('btnStop').disabled = true;
+}
+
+function stopSubmit() {
+  running = false;
+  document.getElementById('btnStart').disabled = false;
+  document.getElementById('btnStop').disabled = true;
+  log('Stopped at #' + currentIndex + '. Press START to resume.', 'warn');
+}
+
+function updateStats() {
+  document.getElementById('sSent').textContent = sentToday;
+  document.getElementById('sRemaining').textContent = URLS.length - currentIndex;
+  document.getElementById('sErrors').textContent = errorCount;
+  document.getElementById('progressFill').style.width = (Math.min(sentToday, DAILY_LIMIT) / DAILY_LIMIT * 100) + '%';
+}
+
+function renderRow(i) {
+  const r = results[i];
+  let row = document.getElementById('row-' + i);
+  if (!row) {
+    row = document.createElement('tr');
+    row.id = 'row-' + i;
+    row.innerHTML = `<td>${i+1}</td><td><a href="${r.url}" target="_blank" style="color:#60a5fa;text-decoration:none">${r.url}</a></td><td id="badge-${i}"><span class="badge queued">QUEUED</span></td><td id="resp-${i}" style="color:#555">—</td>`;
+    document.getElementById('tableBody').appendChild(row);
+  } else {
+    const cls = r.status === 'sent' ? 'sent' : r.status === 'error' ? 'error' : r.status === 'skipped' ? 'skipped' : 'queued';
+    const txt = r.status.toUpperCase();
+    document.getElementById('badge-' + i).innerHTML = `<span class="badge ${cls}">${txt}</span>`;
+    document.getElementById('resp-' + i).textContent = r.response || '—';
+    document.getElementById('resp-' + i).style.color = r.status === 'sent' ? '#4ade80' : r.status === 'error' ? '#f87171' : '#555';
+  }
+}
+
+function log(msg, type = 'info') {
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  line.className = 'log-line ' + type;
+  line.textContent = new Date().toTimeString().slice(0,8) + ' › ' + msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function exportCSV() {
+  const rows = [['#','URL','STATUS','RESPONSE']];
+  results.forEach((r,i) => rows.push([i+1, r.url, r.status, r.response]));
+  const csv = rows.map(r => r.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = 'indexing_results.csv';
+  a.click();
+}
+</script>
+</body>
+</html>
